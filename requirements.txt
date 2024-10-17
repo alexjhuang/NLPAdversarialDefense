@@ -1,0 +1,9 @@
+torch
+transformers
+datasets
+textattack==0.3.3
+scikit-learn
+nltk
+numpy
+matplotlib
+tqdm<4.50.0
