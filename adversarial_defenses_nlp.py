@@ -2,10 +2,11 @@
 import torch
 from transformers import BertForSequenceClassification, ElectraForSequenceClassification, BertTokenizer, ElectraTokenizer
 from transformers import Trainer, TrainingArguments
-from datasets import load_dataset
+from datasets import load_dataset, load_from_disk
 import nltk
 from textattack.attack_recipes import TextFoolerJin2019
 from textattack.datasets import HuggingFaceDataset
+from textattack.models.wrappers import HuggingFaceModelWrapper
 from textattack import Attacker
 from sklearn.metrics import accuracy_score, f1_score
 
@@ -17,21 +18,46 @@ electra_tokenizer = ElectraTokenizer.from_pretrained('google/electra-base-discri
 def tokenize_function(examples, tokenizer):
     return tokenizer(examples['text'], padding="max_length", truncation=True)
 
+
+try:
+    bert_encoded = load_from_disk(".encoded_datasets/bert_encoded")
+    print("Loaded BERT-encoded dataset from disk.")
+except:
+    # If not saved, tokenize and save
+    bert_encoded = dataset.map(lambda x: tokenize_function(x, bert_tokenizer), batched=True)
+    bert_encoded.save_to_disk(".encoded_datasets/bert_encoded")
+    print("BERT-encoded dataset saved to disk.")
+
+# Check if the ELECTRA-encoded dataset is already saved
+try:
+    electra_encoded = load_from_disk(".encoded_datasets/electra_encoded")
+    print("Loaded ELECTRA-encoded dataset from disk.")
+except:
+    # If not saved, tokenize and save
+    electra_encoded = dataset.map(lambda x: tokenize_function(x, electra_tokenizer), batched=True)
+    electra_encoded.save_to_disk(".encoded_datasets/electra_encoded")
+    print("ELECTRA-encoded dataset saved to disk.")
 bert_encoded = dataset.map(lambda x: tokenize_function(x, bert_tokenizer), batched=True)
 electra_encoded = dataset.map(lambda x: tokenize_function(x, electra_tokenizer), batched=True)
+
+torch.save
 
 # Load pre-trained models for classification
 bert_model = BertForSequenceClassification.from_pretrained('bert-base-uncased', num_labels=2)
 electra_model = ElectraForSequenceClassification.from_pretrained('google/electra-base-discriminator', num_labels=2)
 
 # Define adversarial attack (TextFooler)
-attack = TextFoolerJin2019.build(model=bert_model)
+#attack = TextFoolerJin2019.build(bert_model)
 
 # Wrap dataset in TextAttack format
 wrapped_model = HuggingFaceModelWrapper(bert_model, bert_tokenizer)
 
 # Create the attack
-attack = TextFoolerJin2019.build(wrapped_model)
+
+attack = TextFoolerJin2019.build(wrapped_model)   
+attack.max_candidates = 10   # Increase the number of candidates
+attack.max_num_words = 5     # Allow more words to be perturbed
+attack.threshold = 0.3       # Lower the threshold for more perturbation
 
 # Use Hugging Face dataset (IMDB)
 huggingface_dataset = HuggingFaceDataset("imdb", split='test')
@@ -44,8 +70,8 @@ results = attacker.attack_dataset()
 
 # Display a few adversarial examples
 for i in range(5):
-    print("Original:", results[i].original_text)
-    print("Adversarial:", results[i].perturbed_text)
+    print("Original:", results[i].original_text())
+    print("Adversarial:", results[i].perturbed_text())
     print("-" * 50)
 
 training_args = TrainingArguments(
