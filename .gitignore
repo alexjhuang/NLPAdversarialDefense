@@ -1,0 +1,4 @@
+.encoded_datasets/
+logs/
+results/
+scratch.ipynb
